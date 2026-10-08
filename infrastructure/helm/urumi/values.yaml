@@ -1,0 +1,287 @@
+# ==============================================================================
+# URUMI AI — TEAM MCP GATEWAY BASE HELM VALUES
+# ==============================================================================
+
+global:
+  environment: production
+  storageClass: "standard"
+
+# Gateway Deployment
+gateway:
+  replicaCount: 2
+  image:
+    repository: urumi/gateway
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8000
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 15
+    periodSeconds: 10
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 5
+    periodSeconds: 5
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+  env:
+    ENVIRONMENT: production
+    LLM_PROVIDER: openai
+    LLM_MODEL: gpt-4o-mini
+    AI_SIMULATION_FALLBACK: "true"
+    MCP_CONNECT_TIMEOUT_SECONDS: "3.0"
+    MCP_REQUEST_TIMEOUT_SECONDS: "15.0"
+    SSRF_STRICT_MODE: "true"
+    SSRF_ALLOWED_INTERNAL_HOSTS: "woo-mcp,inventory-mcp,analytics-mcp,postgres,mysql"
+
+# React Dashboard Deployment
+dashboard:
+  replicaCount: 2
+  image:
+    repository: urumi/dashboard
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8080
+  resources:
+    limits:
+      cpu: 250m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+  livenessProbe:
+    httpGet:
+      path: /
+      port: 8080
+    initialDelaySeconds: 10
+    periodSeconds: 10
+  readinessProbe:
+    httpGet:
+      path: /
+      port: 8080
+    initialDelaySeconds: 5
+    periodSeconds: 5
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 101
+
+# WooCommerce MCP Server (Internal Service Only)
+wooMcp:
+  replicaCount: 1
+  image:
+    repository: urumi/woo-mcp
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8001
+  resources:
+    limits:
+      cpu: 250m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 128Mi
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8001
+    initialDelaySeconds: 10
+    periodSeconds: 10
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8001
+    initialDelaySeconds: 5
+    periodSeconds: 5
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+
+# Inventory MCP Server (Internal Service Only)
+inventoryMcp:
+  replicaCount: 1
+  image:
+    repository: urumi/inventory-mcp
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8002
+  resources:
+    limits:
+      cpu: 250m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 128Mi
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8002
+    initialDelaySeconds: 10
+    periodSeconds: 10
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8002
+    initialDelaySeconds: 5
+    periodSeconds: 5
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+
+# Analytics MCP Server (Internal Service Only)
+analyticsMcp:
+  replicaCount: 1
+  image:
+    repository: urumi/analytics-mcp
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8003
+  resources:
+    limits:
+      cpu: 250m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 128Mi
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8003
+    initialDelaySeconds: 10
+    periodSeconds: 10
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8003
+    initialDelaySeconds: 5
+    periodSeconds: 5
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+
+# PostgreSQL Database for Gateway
+postgres:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "16-alpine"
+  service:
+    port: 5432
+  persistence:
+    enabled: true
+    size: 10Gi
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
+# WordPress & WooCommerce Storefront
+wordpress:
+  enabled: true
+  image:
+    repository: wordpress
+    tag: "6.5-php8.2-apache"
+  service:
+    type: ClusterIP
+    port: 80
+  persistence:
+    enabled: true
+    size: 10Gi
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 200m
+      memory: 512Mi
+
+# MySQL Database for WordPress/WooCommerce
+mysql:
+  enabled: true
+  image:
+    repository: mysql
+    tag: "8.0"
+  service:
+    port: 3306
+  persistence:
+    enabled: true
+    size: 10Gi
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 200m
+      memory: 512Mi
+
+# Ingress Configuration
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/proxy-body-size: "64m"
+  hosts:
+    - host: dashboard.urumi.local
+      paths:
+        - path: /
+          pathType: Prefix
+          service: dashboard
+          port: 8080
+        - path: /api
+          pathType: Prefix
+          service: gateway
+          port: 8000
+        - path: /mcp
+          pathType: Prefix
+          service: gateway
+          port: 8000
+    - host: store.urumi.local
+      paths:
+        - path: /
+          pathType: Prefix
+          service: wordpress
+          port: 80
+  tls: []
+
+# Network Policy Enforcement (Default Deny All External to Upstreams)
+networkPolicy:
+  enabled: true
+
+# Secrets (Production secrets passed through CI/CD or sealed secrets)
+secrets:
+  gatewaySecretKey: "urumi-prod-secret-key-change-in-production-env"
+  postgresPassword: "urumi_secure_pg_pass_2026"
+  mysqlRootPassword: "urumi_mysql_root_pass_2026"
+  mysqlPassword: "urumi_mysql_wp_pass_2026"
+  wooConsumerKey: "ck_urumi_demo_consumer_key_12345"
+  wooConsumerSecret: "cs_urumi_demo_consumer_secret_67890"
+  adminPassword: "AdminSecurePass123!"

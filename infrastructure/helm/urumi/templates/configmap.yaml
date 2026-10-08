@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-config
+  labels:
+    app.kubernetes.io/name: urumi
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  GATEWAY_HOST: "0.0.0.0"
+  GATEWAY_PORT: "8000"
+  ENVIRONMENT: {{ .Values.gateway.env.ENVIRONMENT | quote }}
+  DATABASE_URL: "postgresql://urumi_user:$(POSTGRES_PASSWORD)@{{ .Release.Name }}-postgres:5432/urumi_gateway"
+  WOO_MCP_URL: "http://{{ .Release.Name }}-woo-mcp:8001/mcp"
+  INVENTORY_MCP_URL: "http://{{ .Release.Name }}-inventory-mcp:8002/mcp"
+  ANALYTICS_MCP_URL: "http://{{ .Release.Name }}-analytics-mcp:8003/mcp"
+  WOOCOMMERCE_URL: "http://{{ .Release.Name }}-wordpress:80"
+  SSRF_STRICT_MODE: {{ .Values.gateway.env.SSRF_STRICT_MODE | quote }}
+  SSRF_ALLOWED_INTERNAL_HOSTS: {{ .Values.gateway.env.SSRF_ALLOWED_INTERNAL_HOSTS | quote }}
+  MCP_CONNECT_TIMEOUT_SECONDS: {{ .Values.gateway.env.MCP_CONNECT_TIMEOUT_SECONDS | quote }}
+  MCP_REQUEST_TIMEOUT_SECONDS: {{ .Values.gateway.env.MCP_REQUEST_TIMEOUT_SECONDS | quote }}
+  LLM_PROVIDER: {{ .Values.gateway.env.LLM_PROVIDER | quote }}
+  LLM_MODEL: {{ .Values.gateway.env.LLM_MODEL | quote }}
+  AI_SIMULATION_FALLBACK: {{ .Values.gateway.env.AI_SIMULATION_FALLBACK | quote }}

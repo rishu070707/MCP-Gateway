@@ -1,0 +1,101 @@
+# ==============================================================================
+# URUMI AI — PRODUCTION K3S / CLOUD VALUES
+# ==============================================================================
+
+global:
+  environment: production
+  storageClass: "local-path" # k3s default storage provisioner
+
+gateway:
+  replicaCount: 3
+  image:
+    repository: ghcr.io/urumi/gateway
+    tag: v1.0.0
+    pullPolicy: Always
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 250m
+      memory: 512Mi
+  env:
+    ENVIRONMENT: production
+    SSRF_STRICT_MODE: "true"
+
+dashboard:
+  replicaCount: 2
+  image:
+    repository: ghcr.io/urumi/dashboard
+    tag: v1.0.0
+    pullPolicy: Always
+  resources:
+    limits:
+      cpu: 500m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+wooMcp:
+  replicaCount: 2
+  image:
+    repository: ghcr.io/urumi/woo-mcp
+    tag: v1.0.0
+
+inventoryMcp:
+  replicaCount: 2
+  image:
+    repository: ghcr.io/urumi/inventory-mcp
+    tag: v1.0.0
+
+analyticsMcp:
+  replicaCount: 2
+  image:
+    repository: ghcr.io/urumi/analytics-mcp
+    tag: v1.0.0
+
+postgres:
+  persistence:
+    size: 50Gi
+
+wordpress:
+  persistence:
+    size: 100Gi
+
+mysql:
+  persistence:
+    size: 100Gi
+
+ingress:
+  enabled: true
+  className: "traefik" # standard on k3s
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
+  hosts:
+    - host: gateway.urumi.ai
+      paths:
+        - path: /
+          pathType: Prefix
+          service: dashboard
+          port: 8080
+        - path: /api
+          pathType: Prefix
+          service: gateway
+          port: 8000
+        - path: /mcp
+          pathType: Prefix
+          service: gateway
+          port: 8000
+    - host: store.urumi.ai
+      paths:
+        - path: /
+          pathType: Prefix
+          service: wordpress
+          port: 80
+  tls:
+    - secretName: urumi-ai-tls
+      hosts:
+        - gateway.urumi.ai
+        - store.urumi.ai

@@ -1,0 +1,74 @@
+# ==============================================================================
+# URUMI AI — LOCAL ENVIRONMENT (KIND / K3D / MINIKUBE)
+# ==============================================================================
+
+global:
+  environment: local
+  storageClass: "standard"
+
+gateway:
+  replicaCount: 1
+  resources:
+    limits:
+      cpu: 300m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 128Mi
+  env:
+    ENVIRONMENT: local
+    SSRF_STRICT_MODE: "false"
+
+dashboard:
+  replicaCount: 1
+  resources:
+    limits:
+      cpu: 100m
+      memory: 128Mi
+    requests:
+      cpu: 25m
+      memory: 32Mi
+
+wooMcp:
+  replicaCount: 1
+
+inventoryMcp:
+  replicaCount: 1
+
+analyticsMcp:
+  replicaCount: 1
+
+postgres:
+  persistence:
+    size: 1Gi
+
+wordpress:
+  persistence:
+    size: 2Gi
+
+mysql:
+  persistence:
+    size: 2Gi
+
+ingress:
+  enabled: true
+  className: "nginx"
+  hosts:
+    - host: localhost
+      paths:
+        - path: /
+          pathType: Prefix
+          service: dashboard
+          port: 8080
+        - path: /api
+          pathType: Prefix
+          service: gateway
+          port: 8000
+        - path: /mcp
+          pathType: Prefix
+          service: gateway
+          port: 8000
+        - path: /store
+          pathType: Prefix
+          service: wordpress
+          port: 80

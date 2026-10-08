@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-inventory-mcp
+  labels:
+    app.kubernetes.io/name: urumi
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: inventory-mcp
+spec:
+  replicas: {{ .Values.inventoryMcp.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: urumi
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: inventory-mcp
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: urumi
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: inventory-mcp
+    spec:
+      securityContext:
+        {{- toYaml .Values.inventoryMcp.securityContext | nindent 8 }}
+      containers:
+        - name: inventory-mcp
+          image: "{{ .Values.inventoryMcp.image.repository }}:{{ .Values.inventoryMcp.image.tag }}"
+          imagePullPolicy: {{ .Values.inventoryMcp.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8002
+              protocol: TCP
+          env:
+            - name: PORT
+              value: "8002"
+          livenessProbe:
+            {{- toYaml .Values.inventoryMcp.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.inventoryMcp.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.inventoryMcp.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-inventory-mcp
+  labels:
+    app.kubernetes.io/name: urumi
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: inventory-mcp
+spec:
+  type: {{ .Values.inventoryMcp.service.type }}
+  ports:
+    - port: {{ .Values.inventoryMcp.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/name: urumi
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: inventory-mcp

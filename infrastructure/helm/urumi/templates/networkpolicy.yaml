@@ -1,0 +1,58 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-upstream-mcp-isolation
+  labels:
+    app.kubernetes.io/name: urumi
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: In
+        values: ["woo-mcp", "inventory-mcp", "analytics-mcp", "postgres", "mysql"]
+  policyTypes:
+    - Ingress
+  ingress:
+    # Only allow ingress traffic coming from the Gateway component or fellow internal services
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: gateway
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: woo-mcp
+      ports:
+        - protocol: TCP
+          port: 8001
+        - protocol: TCP
+          port: 8002
+        - protocol: TCP
+          port: 8003
+        - protocol: TCP
+          port: 5432
+        - protocol: TCP
+          port: 3306
+        - protocol: TCP
+          port: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-gateway-ingress
+  labels:
+    app.kubernetes.io/name: urumi
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: gateway
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow ingress controller and dashboard to reach gateway
+    - ports:
+        - protocol: TCP
+          port: 8000
+{{- end }}
