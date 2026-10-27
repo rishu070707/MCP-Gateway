@@ -4,11 +4,12 @@ WORKDIR /app
 
 RUN groupadd -r urumi && useradd -r -g urumi urumi
 
-COPY requirements.txt .
+COPY apps/gateway/requirements.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy source
-COPY . /app/apps/gateway/
+# Copy apps and services
+COPY apps /app/apps
+COPY services /app/services
 
 ENV PYTHONPATH=/app
 ENV GATEWAY_HOST=0.0.0.0

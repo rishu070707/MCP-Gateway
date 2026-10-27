@@ -19,41 +19,65 @@ class AIChatAgent:
         self.db = db
         self.user = user
 
-    async def run_turn(self, user_message: str, chat_history: Optional[List[Dict[str, str]]] = None) -> Dict[str, Any]:
+    async def run_turn(
+        self,
+        user_message: str,
+        chat_history: Optional[List[Dict[str, str]]] = None,
+        api_key: Optional[str] = None,
+        model: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
         Executes an agent turn given the user message and history.
-        Tries OpenAI-compatible LLM first; if no API key is provided or if it errors,
-        seamlessly uses deterministic intelligent tool execution fallback.
+        Tries Groq LLM first (using passed key or configured key);
+        if no API key is provided or if it errors, seamlessly uses deterministic
+        intelligent tool execution fallback on real-time data.
         """
         # Discover accessible tools for current user
         mcp_tools = MCPRouter.get_available_tools(self.db, self.user)
         tool_names = [t["name"] for t in mcp_tools]
         
+        effective_key = api_key or settings.LLM_API_KEY
         # If API key is present and simulation not forced, attempt LLM call
-        if settings.LLM_API_KEY and settings.LLM_API_KEY.strip() and not settings.LLM_API_KEY.startswith("your-"):
+        if effective_key and effective_key.strip() and not effective_key.startswith("your-"):
             try:
-                return await self._run_llm_loop(user_message, mcp_tools, chat_history)
+                return await self._run_llm_loop(user_message, mcp_tools, chat_history, api_key=effective_key, model=model)
             except Exception as e:
-                logger.warning(f"LLM API execution encountered error: {e}. Falling back to deterministic engine.")
+                logger.warning(f"Groq LLM execution encountered error: {e}. Falling back to deterministic engine.")
 
-        # Fallback to intelligent deterministic engine
+        # Fallback to intelligent deterministic engine (queries live real-time tools)
         return await self._run_deterministic_agent(user_message, mcp_tools)
 
-    async def _run_llm_loop(self, user_message: str, tools: List[Dict[str, Any]], chat_history: Optional[List[Dict[str, str]]]) -> Dict[str, Any]:
+    async def _run_llm_loop(
+        self,
+        user_message: str,
+        tools: List[Dict[str, Any]],
+        chat_history: Optional[List[Dict[str, str]]],
+        api_key: str,
+        model: Optional[str] = None
+    ) -> Dict[str, Any]:
         from openai import AsyncOpenAI
         client = AsyncOpenAI(
             base_url=settings.LLM_BASE_URL,
-            api_key=settings.LLM_API_KEY
+            api_key=api_key
         )
+        effective_model = model or settings.LLM_MODEL
 
+        import copy
         openai_tools = []
         for t in tools:
+            schema = copy.deepcopy(t.get("inputSchema", {}))
+            if isinstance(schema, dict) and "properties" in schema and isinstance(schema["properties"], dict):
+                for p_name, p_def in schema["properties"].items():
+                    if isinstance(p_def, dict) and "type" in p_def:
+                        t_val = p_def["type"]
+                        if isinstance(t_val, str) and t_val != "null":
+                            p_def["type"] = [t_val, "null"]
             openai_tools.append({
                 "type": "function",
                 "function": {
                     "name": t["name"],
                     "description": t["description"],
-                    "parameters": t["inputSchema"]
+                    "parameters": schema if schema else {"type": "object", "properties": {}}
                 }
             })
 
@@ -77,7 +101,7 @@ class AIChatAgent:
 
         for _ in range(max_turns):
             response = await client.chat.completions.create(
-                model=settings.LLM_MODEL,
+                model=effective_model,
                 messages=messages,
                 tools=openai_tools if openai_tools else None,
                 tool_choice="auto" if openai_tools else None,
@@ -90,18 +114,35 @@ class AIChatAgent:
                     "tool_calls": tool_calls_trace
                 }
 
+            # Append assistant message with tool calls
+            messages.append({
+                "role": "assistant",
+                "content": msg.content or "",
+                "tool_calls": [
+                    {
+                        "id": tc.id,
+                        "type": "function",
+                        "function": {
+                            "name": tc.function.name,
+                            "arguments": tc.function.arguments
+                        }
+                    }
+                    for tc in msg.tool_calls
+                ]
+            })
+
             # Execute tool calls
-            messages.append(msg)
             for tc in msg.tool_calls:
                 fn_name = tc.function.name
                 fn_args = json.loads(tc.function.arguments) if tc.function.arguments else {}
+                clean_args = {k: v for k, v in fn_args.items() if v is not None} if isinstance(fn_args, dict) else fn_args
 
                 # Execute through Gateway MCP Router
-                result = await MCPRouter.execute_tool_call(self.db, self.user, fn_name, fn_args)
+                result = await MCPRouter.execute_tool_call(self.db, self.user, fn_name, clean_args)
                 tool_calls_trace.append({
                     "id": tc.id,
                     "tool": fn_name,
-                    "arguments": fn_args,
+                    "arguments": clean_args,
                     "result": result
                 })
 

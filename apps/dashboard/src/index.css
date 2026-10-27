@@ -4,32 +4,105 @@
 
 @layer base {
   :root {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    --background: 0 0% 100%;
+    --foreground: 0 0% 0%;
   }
 
   body {
-    @apply bg-slate-950 text-slate-100 min-h-screen selection:bg-sky-500/30 selection:text-sky-200;
+    background-color: #f8f9fa;
+    color: #000000;
+    min-height: 100vh;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   code, pre {
-    font-family: 'JetBrains Mono', monospace;
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   }
 }
 
-/* Custom modern scrollbars */
+/* Neo-brutalist canvas grid */
+.canvas-grid {
+  background-color: #f8f9fa;
+  background-image: 
+    linear-gradient(to right, #e4e4e7 1px, transparent 1px),
+    linear-gradient(to bottom, #e4e4e7 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* Neo-brutal utility classes */
+.brutal-border {
+  border: 2px solid #000000;
+}
+
+.brutal-border-b {
+  border-bottom: 2px solid #000000;
+}
+
+.brutal-border-r {
+  border-right: 2px solid #000000;
+}
+
+.brutal-card {
+  border: 2px solid #000000;
+  box-shadow: 4px 4px 0px 0px #000000;
+  background-color: #ffffff;
+}
+
+.brutal-card-sm {
+  border: 2px solid #000000;
+  box-shadow: 2px 2px 0px 0px #000000;
+  background-color: #ffffff;
+}
+
+.brutal-card-lg {
+  border: 3px solid #000000;
+  box-shadow: 6px 6px 0px 0px #000000;
+  background-color: #ffffff;
+}
+
+.brutal-btn {
+  border: 2px solid #000000;
+  box-shadow: 3px 3px 0px 0px #000000;
+  transition: all 0.1s ease;
+}
+
+.brutal-btn:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0px 0px #000000;
+}
+
+.brutal-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px 0px #000000;
+}
+
+.brutal-badge {
+  border: 2px solid #000000;
+  box-shadow: 2px 2px 0px 0px #000000;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+}
+
+/* Technical scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: #f4f4f5;
+  border-left: 1px solid #000000;
 }
 ::-webkit-scrollbar-thumb {
-  background: #334155;
-  border-radius: 9999px;
+  background: #000000;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: #27272a;
+}
+
+/* Sharp focus outlines */
+*:focus-visible {
+  outline: 2px solid #000000;
+  outline-offset: 2px;
 }

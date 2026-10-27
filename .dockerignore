@@ -1,0 +1,8 @@
+node_modules
+**/node_modules
+.git
+__pycache__
+*.pyc
+apps/dashboard/dist
+.pytest_cache
+bin/

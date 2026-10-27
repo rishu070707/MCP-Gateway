@@ -21,11 +21,17 @@ spec:
         app.kubernetes.io/component: gateway
     spec:
       securityContext:
-        {{- toYaml .Values.gateway.securityContext | nindent 8 }}
+        runAsNonRoot: true
+        runAsUser: 1000
       containers:
         - name: gateway
           image: "{{ .Values.gateway.image.repository }}:{{ .Values.gateway.image.tag }}"
           imagePullPolicy: {{ .Values.gateway.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           ports:
             - name: http
               containerPort: 8000
@@ -34,6 +40,8 @@ spec:
             - configMapRef:
                 name: {{ .Release.Name }}-config
           env:
+            - name: DATABASE_URL
+              value: "postgresql://urumi_user:{{ .Values.secrets.postgresPassword }}@{{ .Release.Name }}-postgres:5432/urumi_gateway"
             - name: GATEWAY_SECRET_KEY
               valueFrom:
                 secretKeyRef:
@@ -49,6 +57,22 @@ spec:
                 secretKeyRef:
                   name: {{ .Release.Name }}-secrets
                   key: POSTGRES_PASSWORD
+            - name: LLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: LLM_API_KEY
+                  optional: true
+            - name: WOOCOMMERCE_CONSUMER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: WOOCOMMERCE_CONSUMER_KEY
+            - name: WOOCOMMERCE_CONSUMER_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: WOOCOMMERCE_CONSUMER_SECRET
           livenessProbe:
             {{- toYaml .Values.gateway.livenessProbe | nindent 12 }}
           readinessProbe:

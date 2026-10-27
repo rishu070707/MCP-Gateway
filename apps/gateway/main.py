@@ -1,12 +1,14 @@
 import asyncio
 import datetime
+from datetime import timezone
 import json
 import logging
+from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
 from fastapi import FastAPI, Depends, HTTPException, status, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from apps.gateway.config import settings
@@ -31,10 +33,23 @@ logger = logging.getLogger("gateway.main")
 # Initialize database schema
 Base.metadata.create_all(bind=engine)
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan: seed defaults and start background sync on startup."""
+    seed_defaults()
+    db = SessionLocal()
+    try:
+        asyncio.create_task(MCPRouter.sync_all_servers(db))
+    finally:
+        db.close()
+    yield
+    # Shutdown: nothing to clean up for now
+
 app = FastAPI(
     title="Urumi AI — Team MCP Gateway",
     description="Production-grade Kubernetes MCP Gateway aggregating WooCommerce, Inventory, and Analytics tools with RBAC and Audit logging",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 app.add_middleware(
@@ -57,6 +72,10 @@ def get_current_user_from_auth(
 ) -> User:
     """Authenticates request via Bearer JWT token or Bearer API key (umcp_...)."""
     if not credentials:
+        if settings.ENVIRONMENT == "development":
+            dev_user = db.query(User).filter(User.active == True).first()
+            if dev_user:
+                return dev_user
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
     
     token = credentials.credentials.strip()
@@ -121,6 +140,9 @@ class APIKeyCreate(BaseModel):
 class ChatRequest(BaseModel):
     message: str
     session_id: Optional[int] = None
+    groq_api_key: Optional[str] = None
+    model: Optional[str] = None
+    model_config = {"extra": "ignore"}
 
 def seed_defaults():
     db = SessionLocal()
@@ -158,19 +180,15 @@ def seed_defaults():
                 db.add(srv)
                 db.commit()
                 logger.info(f"Seeded upstream server: {srv.name} ({srv.slug}) at {srv.url}")
+            elif settings.ENVIRONMENT == "development" and existing.url != s_data["url"]:
+                existing.url = s_data["url"]
+                db.commit()
     finally:
         db.close()
 
 seed_defaults()
 
-@app.on_event("startup")
-async def startup_event():
-    seed_defaults()
-    db = SessionLocal()
-    try:
-        asyncio.create_task(MCPRouter.sync_all_servers(db))
-    finally:
-        db.close()
+# Startup is handled by the lifespan context manager above
 
 # -----------------------------------------------------------------------------
 # Health Check
@@ -182,7 +200,7 @@ def health():
         "status": "healthy",
         "service": "urumi-mcp-gateway",
         "environment": settings.ENVIRONMENT,
-        "timestamp": datetime.datetime.utcnow().isoformat()
+        "timestamp": datetime.datetime.now(timezone.utc).isoformat()
     }
 
 # -----------------------------------------------------------------------------
@@ -446,9 +464,53 @@ def revoke_api_key(
         raise HTTPException(status_code=404, detail="API Key not found")
 
     api_key.active = False
-    api_key.revoked_at = datetime.datetime.utcnow()
+    api_key.revoked_at = datetime.datetime.now(timezone.utc)
     db.commit()
     return {"message": "API Key revoked successfully"}
+
+# -----------------------------------------------------------------------------
+# Server Edit Endpoint (Admin only)
+# -----------------------------------------------------------------------------
+
+@app.put("/api/servers/{server_id}")
+async def edit_server(
+    server_id: int,
+    req: ServerUpdate,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    server = db.query(UpstreamServer).filter(UpstreamServer.id == server_id).first()
+    if not server:
+        raise HTTPException(status_code=404, detail="Server not found")
+
+    if req.url is not None:
+        is_valid, msg = validate_mcp_url(req.url)
+        if not is_valid:
+            raise HTTPException(status_code=400, detail=f"SSRF validation failed: {msg}")
+        server.url = req.url.strip()
+
+    if req.name is not None:
+        server.name = req.name
+    if req.auth_credential is not None:
+        server.auth_credential = req.auth_credential or None
+    if req.is_enabled is not None:
+        server.is_enabled = req.is_enabled
+        if not req.is_enabled:
+            server.status = ServerStatus.DISABLED
+        else:
+            await MCPRouter.sync_server_tools(db, server)
+
+    db.commit()
+    db.refresh(server)
+    return {
+        "id": server.id,
+        "name": server.name,
+        "slug": server.slug,
+        "url": server.url,
+        "status": server.status,
+        "is_enabled": server.is_enabled,
+        "has_auth": bool(server.auth_credential)
+    }
 
 # -----------------------------------------------------------------------------
 # Audit Logs
@@ -529,7 +591,8 @@ def audit_stats(
 async def chat_turn(
     req: ChatRequest,
     user: User = Depends(get_current_user_from_auth),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    x_groq_api_key: Optional[str] = Header(None)
 ):
     session = None
     if req.session_id:
@@ -553,8 +616,14 @@ async def chat_turn(
         for m in session.messages if m.id != user_msg_rec.id
     ]
 
+    effective_groq_key = req.groq_api_key or x_groq_api_key or settings.LLM_API_KEY
     agent = AIChatAgent(db, user)
-    agent_result = await agent.run_turn(req.message, chat_history=history)
+    agent_result = await agent.run_turn(
+        req.message,
+        chat_history=history,
+        api_key=effective_groq_key,
+        model=req.model
+    )
 
     # Save assistant message
     tool_calls_json = json.dumps(agent_result.get("tool_calls", []))

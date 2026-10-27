@@ -119,3 +119,19 @@ The system handles operational queries spanning multiple domain boundaries.
    - Matches SKUs from sales data against inventory status.
    - Detects `MS-WRLS-02` (Wireless Ultra Mouse): sold in Order #5001 today, stock remaining = 8, below minimum threshold 15.
    - Produces synthesized executive recommendation to reorder stock.
+
+---
+
+## 5. Production Evolution & Tradeoffs (DNS, Ingress, StorageClass, Secrets)
+
+The same umbrella Helm chart (`infrastructure/helm/urumi`) is designed to run locally on developer Kind/Minikube clusters and deploy to production-like VPS (k3s / managed K8s) via simple Helm values overrides:
+
+| Dimension | Local Development (`values-local.yaml`) | Production VPS / k3s (`values-prod.yaml`) | Tradeoff / Rationale |
+| :--- | :--- | :--- | :--- |
+| **DNS Strategy** | `localhost` / `nip.io` or direct `kubectl port-forward` | Fully qualified domain names (e.g. `gateway.urumi.ai`, `store.urumi.ai`) | Local uses zero-config loopback; production uses public DNS A-records pointing to VPS public IP. |
+| **Ingress Controller** | `ingress-nginx` or NodePort/port-forwarding | Built-in k3s `Traefik` with automatic TLS via `cert-manager` Let's Encrypt | Production terminates TLS at the ingress edge; local runs unencrypted HTTP for fast iterative debugging. |
+| **StorageClass** | `standard` / `hostpath` / `local-path` | `local-path` (k3s default) or CSI block storage (`longhorn`, `ebs-sc`) | Local storage mounts host directories without persistent HA; production ensures stateful MySQL/PostgreSQL persistence across pod restarts. |
+| **Secrets Management** | Plaintext values in `values.yaml` / mock default secrets | Injected at runtime via `--set secrets.postgresPassword=...`, sealed secrets, or external Vault | Avoids committing production secrets to git while keeping local dev zero-touch. |
+| **Replica Scale** | 1 replica per service (minimal CPU/memory footprint) | 2–3 replicas for Gateway and Dashboard behind ClusterIP Services | Local fits comfortably within 4GB RAM limits; production provides zero-downtime rolling upgrades. |
+| **SSRF Policy** | Relaxed mode allows `localhost` and `127.0.0.1` for mock servers | `SSRF_STRICT_MODE=true` rejects all loopback and unapproved private subnets | Prevents lateral movement or internal port scanning in production cluster. |
+

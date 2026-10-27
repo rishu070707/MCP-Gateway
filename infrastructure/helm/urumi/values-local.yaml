@@ -4,7 +4,7 @@
 
 global:
   environment: local
-  storageClass: "standard"
+  storageClass: "hostpath"
 
 gateway:
   replicaCount: 1
@@ -72,3 +72,6 @@ ingress:
           pathType: Prefix
           service: wordpress
           port: 80
+
+secrets:
+  llmApiKey: ""  # Set your Groq API key here or via --set secrets.llmApiKey=<key>

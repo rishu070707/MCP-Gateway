@@ -9,7 +9,6 @@ data:
   GATEWAY_HOST: "0.0.0.0"
   GATEWAY_PORT: "8000"
   ENVIRONMENT: {{ .Values.gateway.env.ENVIRONMENT | quote }}
-  DATABASE_URL: "postgresql://urumi_user:$(POSTGRES_PASSWORD)@{{ .Release.Name }}-postgres:5432/urumi_gateway"
   WOO_MCP_URL: "http://{{ .Release.Name }}-woo-mcp:8001/mcp"
   INVENTORY_MCP_URL: "http://{{ .Release.Name }}-inventory-mcp:8002/mcp"
   ANALYTICS_MCP_URL: "http://{{ .Release.Name }}-analytics-mcp:8003/mcp"

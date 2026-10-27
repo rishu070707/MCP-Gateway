@@ -8,8 +8,11 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional, Tuple
 from urllib.parse import urlparse
 from jose import JWTError, jwt
+import logging
 from passlib.context import CryptContext
 from apps.gateway.config import settings
+
+logging.getLogger("passlib").setLevel(logging.ERROR)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 

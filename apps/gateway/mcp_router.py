@@ -1,4 +1,5 @@
 import datetime
+from datetime import timezone
 import json
 import logging
 import time
@@ -69,7 +70,7 @@ class MCPRouter:
         try:
             raw_tools = await client.list_tools()
             server.status = ServerStatus.CONNECTED
-            server.last_checked = datetime.datetime.utcnow()
+            server.last_checked = datetime.datetime.now(timezone.utc)
 
             # Refresh tools in DB
             db.query(Tool).filter(Tool.server_id == server.id).delete()
@@ -94,7 +95,7 @@ class MCPRouter:
         except Exception as e:
             logger.warning(f"Failed to sync tools from server {server.name}: {e}")
             server.status = ServerStatus.UNREACHABLE
-            server.last_checked = datetime.datetime.utcnow()
+            server.last_checked = datetime.datetime.now(timezone.utc)
             db.commit()
             return []
 
@@ -284,7 +285,7 @@ class MCPRouter:
                 server_id=server.id if server else None,
                 server_name=server.name if server else "Unknown",
                 tool_name=tool_name,
-                timestamp=datetime.datetime.utcnow(),
+                timestamp=datetime.datetime.now(timezone.utc),
                 duration_ms=round(duration_ms, 2),
                 success=success,
                 error_message=error_message,

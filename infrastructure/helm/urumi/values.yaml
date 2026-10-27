@@ -4,7 +4,7 @@
 
 global:
   environment: production
-  storageClass: "standard"
+  storageClass: "hostpath"
 
 # Gateway Deployment
 gateway:
@@ -284,4 +284,6 @@ secrets:
   mysqlPassword: "urumi_mysql_wp_pass_2026"
   wooConsumerKey: "ck_urumi_demo_consumer_key_12345"
   wooConsumerSecret: "cs_urumi_demo_consumer_secret_67890"
-  adminPassword: "AdminSecurePass123!"
+  adminPassword: ""  # Set via --set secrets.adminPassword=<password>
+  # Inbuilt Groq API Key
+  llmApiKey: ""  # Set your Groq API key here or via --set secrets.llmApiKey=<key>
